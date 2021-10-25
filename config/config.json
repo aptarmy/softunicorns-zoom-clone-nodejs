@@ -1,0 +1,9 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "password",
+    "database": "zoom_clone",
+    "host": "127.0.0.1",
+    "dialect": "postgres"
+  }
+}
