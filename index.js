@@ -15,12 +15,13 @@ const models = require('./models');
 
 const { Server } = require('socket.io');
 
+const corsConfig = {
+	origin: true,
+	methods: ['GET', 'POST', 'OPTIONS']
+};
 const io = new Server(server, {
 	serveClient: false,
-	cors: {
-		origin: 'http://localhost:3000',
-		methods: ['GET', 'POST', 'OPTIONS']
-	}
+	cors: corsConfig
 });
 io.use(async (socket, next) => {
 	const { token } = socket.handshake.auth;
@@ -109,8 +110,8 @@ io.on('connection', async socket => {
 	});
 });
 
-app.use(cors());
-app.options('*', cors());
+app.use(cors(corsConfig));
+app.options('*', cors(corsConfig));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.post('/login', async (req, res, next) => {
@@ -166,6 +167,7 @@ app.post('/room', authMiddleware, async (req, res, next) => {
 	}
 	res.json({ message: 'sucess', room });
 });
+app.get('/', () => res.json({ message: 'okay' }));
 app.use((error, req, res, next) => {
 	res.status(error.status || 500).json(error);
 });
