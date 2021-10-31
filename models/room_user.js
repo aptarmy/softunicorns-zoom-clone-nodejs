@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
       // define association here
       this.belongsTo(models.room);
       this.belongsTo(models.user);
-      this.hasMany(models.room_user_socket);
+      this.hasMany(models.room_user_socket, { foreignKey: 'roomUserId', as: 'sockets' });
     }
   };
   room_user.init({
