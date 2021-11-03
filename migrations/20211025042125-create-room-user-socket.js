@@ -31,6 +31,8 @@ module.exports = {
         onDelete: 'cascade',
         onUpdate: 'cascade',
       },
+      micMuted: Sequelize.BOOLEAN,
+      cameraMuted: Sequelize.BOOLEAN,
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

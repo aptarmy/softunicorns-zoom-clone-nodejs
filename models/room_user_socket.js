@@ -18,7 +18,9 @@ module.exports = (sequelize, DataTypes) => {
   room_user_socket.init({
     roomUserId: DataTypes.INTEGER,
     socketId: DataTypes.STRING,
-    userId: DataTypes.INTEGER
+    userId: DataTypes.INTEGER,
+    micMuted: DataTypes.BOOLEAN,
+    cameraMuted: DataTypes.BOOLEAN
   }, {
     sequelize,
     modelName: 'room_user_socket',

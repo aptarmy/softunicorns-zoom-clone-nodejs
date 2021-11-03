@@ -61,11 +61,11 @@ io.on('connection', async socket => {
 	// join socket with roomSlug
 	socket.join(socket.roomSlug);
 	// update user socket in db
-	models.room_user_socket.create({ roomUserId: socket.roomUserId, userId: socket.userId, socketId: socket.id })
+	models.room_user_socket.create({ roomUserId: socket.roomUserId, userId: socket.userId, socketId: socket.id, micMuted: false, cameraMuted: false })
 		.then(roomUserSocket => {
 			socket.roomUserSocketId = roomUserSocket.id;
 			// notify participants in the room that new user joined
-			models.user.findOne({ where: { id: socket.userId }, attributes: ['id', 'fName', 'lName', 'email', 'imgUrl'], include: { model: models.room_user, where: { roomId: socket.roomId }, attributes: ['id', 'admitted'], include: { model: models.room_user_socket, attributes: ['socketId'], as: 'sockets' } } })
+			models.user.findOne({ where: { id: socket.userId }, attributes: ['id', 'fName', 'lName', 'email', 'imgUrl'], include: { model: models.room_user, where: { roomId: socket.roomId }, attributes: ['id', 'admitted'], include: { model: models.room_user_socket, attributes: ['socketId', 'micMuted', 'cameraMuted'], as: 'sockets' } } })
 				.then(user => {
 					io.to(socket.roomSlug).emit('user-joined', user, socket.id);
 				});
@@ -86,6 +86,24 @@ io.on('connection', async socket => {
 		if(!candidate && !description) { return console.log('candidate or description is required') }
 		io.to(toSocketId).emit('webrtc-signaling', { fromSocketId: socket.id, [candidate ? 'candidate' : 'description']: candidate || description });
 	});
+	socket.on('mediastream-track-update', async ({ micMuted, cameraMuted }) => {
+		try {
+			const userSocket = await models.room_user_socket.findOne({ where: { socketId: socket.id }, include: { model: models.room_user, where: { roomId: socket.roomId } }, attributes: ['id', 'socketId', 'userId', 'micMuted', 'cameraMuted'] });
+			userSocket.micMuted = micMuted;
+			userSocket.cameraMuted = cameraMuted;
+			await userSocket.save();
+			const { id, ...updatedSocket } = userSocket.get({ plain: true });
+			io.to(socket.roomSlug).emit('mediastream-track-update', updatedSocket);
+		} catch(error) { console.error(error) }
+	});
+	socket.on('room-close', async () => {
+		try {
+			const room = await models.room.findOne({ where: { id: socket.roomId, ownerId: socket.userId } });
+			if(!room) { return console.log('user is not the owner of the room, and trys to close the room. aborted') }
+			await room.destroy();
+			io.to(socket.roomSlug).emit('room-close');
+		} catch(error) { console.error(error) }
+	});
 	socket.on('disconnect', async () => {
 		console.log('socket disconnected: ', socket.id);
 		// remove socketId
@@ -93,20 +111,13 @@ io.on('connection', async socket => {
 			models.room_user_socket.destroy({ where: { id: socket.roomUserSocketId } })
 				.then(() => {
 					// notify participants in the room that new user joined
-					models.user.findOne({ where: { id: socket.userId }, attributes: ['id', 'fName', 'lName', 'email', 'imgUrl'], include: { model: models.room_user, where: { roomId: socket.roomId }, attributes: ['id', 'admitted'], include: { model: models.room_user_socket, attributes: ['socketId'], as: 'sockets' } } })
+					models.user.findOne({ where: { id: socket.userId }, attributes: ['id', 'fName', 'lName', 'email', 'imgUrl'], include: { model: models.room_user, where: { roomId: socket.roomId }, attributes: ['id', 'admitted'], include: { model: models.room_user_socket, attributes: ['socketId', 'micMuted', 'cameraMuted'], as: 'sockets' } } })
 					.then(user => {
 						io.to(socket.roomSlug).emit('user-left', user, socket.id);
 					});
 				})
 				.catch(err => console.error(err));
 		}
-		// remove room if the host leave
-		// if(socket.userId === socket.roomOwnerId) {
-		// 	// notify participants to leave the room
-		// 	io.to(socket.roomSlug).emit('host-left');
-		// 	models.room.destroy({ where: { id: socket.roomId } })
-		// 		.catch(err => console.error(err));
-		// }
 	});
 });
 
@@ -146,12 +157,12 @@ app.get('/room/:roomSlug', authMiddleware, async (req, res, next) => {
 			// notify host to admit the user
 			const roomOwnerSocketIds = await models.room_user_socket.findAll({ where: { userId: room.ownerId }, attributes: ['socketId'], include: { model: models.room_user, where: { roomId: room.id } } });
 			const user = await models.user.findOne({ where: { id: userId }, attributes: [ 'id', 'fName', 'lName', 'email', 'imgUrl' ] });
-			const userSockets = await models.room_user_socket.findAll({ where: { userId: userId }, attributes: ['socketId'], include: { model: models.room_user, where: { roomId: room.id } } });
-			roomOwnerSocketIds.forEach(socket => io.to(socket.socketId).emit('user-to-admit', { ...user.get({ plain: true }), sockets: userSockets.map(s => s.socketId) }));
+			const userSockets = await models.room_user_socket.findAll({ where: { userId: userId }, attributes: ['socketId', 'micMuted', 'cameraMuted'], include: { model: models.room_user, where: { roomId: room.id } } });
+			roomOwnerSocketIds.forEach(socket => io.to(socket.socketId).emit('user-to-admit', { ...user.get({ plain: true }), sockets: userSockets.map(s => ({socketId: s.socketId, micMuted: s.micMuted, cameraMuted: s.cameraMuted})) }));
 			return next({ status: 200, error: 'You have not been admitted to the room yet.' });
 		}
 		// get participants
-		participants = await models.user.findAll({ attributes: ['id', 'fName', 'lName', 'email', 'imgUrl'], include: { model: models.room_user, where: { roomId: room.id }, attributes: ['id', 'admitted'], include: { model: models.room_user_socket, attributes: ['socketId'], as: 'sockets' } } });
+		participants = await models.user.findAll({ attributes: ['id', 'fName', 'lName', 'email', 'imgUrl'], include: { model: models.room_user, where: { roomId: room.id }, attributes: ['id', 'admitted'], include: { model: models.room_user_socket, attributes: ['socketId', 'micMuted', 'cameraMuted'], as: 'sockets' } } });
 	} catch(error) {
 		return next({ status: 500, error: error.message, original: error.original });
 	}
