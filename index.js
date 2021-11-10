@@ -10,6 +10,7 @@ const model = require('./models');
 const { v4: uuid } = require('uuid');
 const { verify } = require('./helpers/google-oauth-2');
 const { generateToken, verifyToken } = require('./helpers/jwt');
+const { turnServerCredential } = require('./helpers/coturn');
 const authMiddleware = require('./middlewares/auth');
 const models = require('./models');
 
@@ -166,7 +167,8 @@ app.get('/room/:roomSlug', authMiddleware, async (req, res, next) => {
 	} catch(error) {
 		return next({ status: 500, error: error.message, original: error.original });
 	}
-	res.json({ room, participants });
+	const credential = turnServerCredential();
+	res.json({ room, participants, credential });
 });
 app.post('/room', authMiddleware, async (req, res, next) => {
 	const roomSlug = uuid();
