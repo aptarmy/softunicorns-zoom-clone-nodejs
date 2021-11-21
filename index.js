@@ -97,27 +97,24 @@ io.on('connection', async socket => {
 			io.to(socket.roomSlug).emit('mediastream-track-update', updatedSocket);
 		} catch(error) { console.error(error) }
 	});
-	socket.on('room-close', async () => {
-		try {
-			const room = await models.room.findOne({ where: { id: socket.roomId, ownerId: socket.userId } });
-			if(!room) { return console.log('user is not the owner of the room, and trys to close the room. aborted') }
-			await room.destroy();
-			io.to(socket.roomSlug).emit('room-close');
-		} catch(error) { console.error(error) }
-	});
 	socket.on('disconnect', async () => {
 		console.log('socket disconnected: ', socket.id);
 		// remove socketId
 		if(socket.roomUserSocketId !== undefined) {
-			models.room_user_socket.destroy({ where: { id: socket.roomUserSocketId } })
-				.then(() => {
-					// notify participants in the room that new user joined
-					models.user.findOne({ where: { id: socket.userId }, attributes: ['id', 'fName', 'lName', 'email', 'imgUrl'], include: { model: models.room_user, where: { roomId: socket.roomId }, attributes: ['id', 'admitted'], include: { model: models.room_user_socket, attributes: ['socketId', 'micMuted', 'cameraMuted'], as: 'sockets' } } })
-					.then(user => {
-						io.to(socket.roomSlug).emit('user-left', user, socket.id);
-					});
-				})
-				.catch(err => console.error(err));
+			try {
+				await models.room_user_socket.destroy({ where: { id: socket.roomUserSocketId } });
+				// notify participants in the room that new user joined
+				const user = await models.user.findOne({ where: { id: socket.userId }, attributes: ['id', 'fName', 'lName', 'email', 'imgUrl'], include: { model: models.room_user, where: { roomId: socket.roomId }, attributes: ['id', 'admitted'], include: { model: models.room_user_socket, attributes: ['socketId', 'micMuted', 'cameraMuted'], as: 'sockets' } } });
+				io.to(socket.roomSlug).emit('user-left', user, socket.id);
+				// close room if no one in there
+				const count = await models.room_user_socket.count({ include: { model: models.room_user, where: { roomId: socket.roomId } } })
+				if(!count || count === 0) {
+					await models.room.destroy({ where: { id: socket.roomId } });
+					console.log('Room has been destroyed as no one in the room');
+				}
+			} catch(err) {
+				console.error(err);
+			}
 		}
 	});
 });
