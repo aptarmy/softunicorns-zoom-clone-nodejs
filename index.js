@@ -60,7 +60,11 @@ io.on('connection', async socket => {
 	console.log(`${chalk.green('token')}: ${socket.handshake.auth.token}`);
 	console.log(`${chalk.green('roomSlug')}: ${socket.handshake.query.roomSlug}`);
 	// join socket with roomSlug
-	socket.join(socket.roomSlug);
+	models.room_user.findOne({ where: { roomId: socket.roomId, userId: socket.userId } })
+		.then(roomUser => {
+			if(roomUser.admitted) { socket.join(socket.roomSlug) }
+		})
+		.catch(err => console.error(err));
 	// update user socket in db
 	models.room_user_socket.create({ roomUserId: socket.roomUserId, userId: socket.userId, socketId: socket.id, micMuted: false, cameraMuted: false })
 		.then(roomUserSocket => {
@@ -77,10 +81,13 @@ io.on('connection', async socket => {
 			const roomUser = await models.room_user.findOne({ where: { userId, roomId: socket.roomId } });
 			roomUser.admitted = true;
 			await roomUser.save();
+			io.to(socket.roomSlug).emit('user-admitted', userId);
 			const roomUserSockets = await models.room_user_socket.findAll({ where: { userId: userId }, include: { model: models.room_user, where: { roomId: socket.roomId } } });
 			const sockets = roomUserSockets.map(s => s.socketId);
+			// join user in the room
+			sockets.forEach(s => io.sockets.sockets.get(s).join(socket.roomSlug));
+			// notify user they are admitted
 			sockets.forEach(s => io.to(s).emit('admitted-to-room'));
-			io.to(socket.roomSlug).emit('user-admitted', userId);
 		} catch(error) { console.error(error) }
 	});
 	socket.on('webrtc-signaling', async ({ toSocketId, candidate, description }) => {
