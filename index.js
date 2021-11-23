@@ -33,19 +33,18 @@ io.use(async (socket, next) => {
 	try {
 		payload = verifyToken(token);
 	} catch(error) {
-		console.log(error);
-		return next(error);
+		return next(new Error('AUTHENTICATION_FAILED'));
 	}
 	try {
 		room = await models.room.findOne({ where: { slug: roomSlug }, attributes: ['id', 'ownerId'] });
 		if(!room) { return next(new Error(`Room slug not found: ${roomSlug}`)) }
 		user = await models.user.findOne({ where: { id: payload.id }, attributes: ['id', 'email'] });
-		if(!user) { return next(new Error(`Sser not found id: ${payload.id}`)) }
+		if(!user) { return next(new Error(`User not found id: ${payload.id}`)) }
 		roomUser = await models.room_user.findOne({ where: { roomId: room.id, userId: user.id }, attributes: ['id'] });
 		if(!roomUser) { roomUser = await models.room_user.create({ roomId: room.id, userId: user.id, admitted: room.ownerId === user.id }); }
 	} catch(error) {
 		console.error(error);
-		return next(error);
+		return next(new Error(error.message));
 	}
 	socket.userId = payload.id;
 	socket.userEmail = payload.email;
