@@ -89,9 +89,9 @@ io.on('connection', async socket => {
 			sockets.forEach(s => io.to(s).emit('admitted-to-room'));
 		} catch(error) { console.error(error) }
 	});
-	socket.on('webrtc-signaling', async ({ toSocketId, candidate, description }) => {
+	socket.on('webrtc-signaling', async ({ toSocketId, candidate, description, isScreenSharing=false }) => {
 		if(!candidate && !description) { return console.log('candidate or description is required') }
-		io.to(toSocketId).emit('webrtc-signaling', { fromSocketId: socket.id, [candidate ? 'candidate' : 'description']: candidate || description });
+		io.to(toSocketId).emit('webrtc-signaling', { fromSocketId: socket.id, [candidate ? 'candidate' : 'description']: candidate || description, isScreenSharing });
 	});
 	socket.on('mediastream-track-update', async ({ micMuted, cameraMuted }) => {
 		try {
@@ -102,6 +102,12 @@ io.on('connection', async socket => {
 			const { id, ...updatedSocket } = userSocket.get({ plain: true });
 			io.to(socket.roomSlug).emit('mediastream-track-update', updatedSocket);
 		} catch(error) { console.error(error) }
+	});
+	socket.on('start-sharing-screen', () => {
+		io.to(socket.roomSlug).emit('start-sharing-screen', { userId: socket.userId, socketId: socket.id });
+	});
+	socket.on('stop-sharing-screen', () => {
+		io.to(socket.roomSlug).emit('stop-sharing-screen');
 	});
 	socket.on('disconnect', async () => {
 		console.log('socket disconnected: ', socket.id);
