@@ -131,8 +131,7 @@ io.on('connection', async socket => {
 	});
 });
 
-app.use(cors(corsConfig));
-app.options('*', cors(corsConfig));
+app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.post('/login', async (req, res, next) => {
