@@ -1,4 +1,7 @@
 {
+  "codesandbox": {
+    "connection_uri": "sqlite::memory:"
+  },
   "development": {
     "username": "postgres",
     "password": "password",

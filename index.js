@@ -189,11 +189,14 @@ app.post('/room', authMiddleware, async (req, res, next) => {
 	}
 	res.json({ message: 'sucess', room });
 });
-app.get('/', () => res.json({ message: 'okay' }));
+app.get('/', (req, res) => res.json({ message: 'okay' }));
 app.use((error, req, res, next) => {
 	res.status(error.status || 500).json(error);
 });
 
-server.listen(8080, () => {
-	console.log('Listening on port 8080');
+// recreateing tables if script starts
+models.sequelize.sync({ force: true }).then(() => {
+	server.listen(8080, () => {
+		console.log('Listening on port 8080');
+	});
 });

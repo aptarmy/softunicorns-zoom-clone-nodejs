@@ -10,8 +10,8 @@ const db = {};
 const chalk = require('chalk');
 
 let sequelize;
-if (config.use_env_variable) {
-  sequelize = new Sequelize(process.env[config.use_env_variable], { ...config, logging: customLogging });
+if (config.connection_uri) {
+  sequelize = new Sequelize(config.connection_uri, { ...config, logging: customLogging });
 } else {
   sequelize = new Sequelize(config.database, config.username, config.password, { ...config, logging: customLogging });
 }
